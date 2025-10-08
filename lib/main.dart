@@ -37,7 +37,6 @@ class _MyAppState extends State<MyApp> {
         },
       );
       
-
       final initialUri = await _appLinks.getInitialLink();
       
       if (initialUri != null) {
@@ -47,9 +46,7 @@ class _MyAppState extends State<MyApp> {
       } else {
         print('No initial URI found');
       }
-      
       setState(() => _status = 'AppLinks initialized - ready for deep links');
-      
     } catch (e) {
       setState(() => _status = 'Error initializing: $e');
     }
@@ -60,9 +57,12 @@ class _MyAppState extends State<MyApp> {
 
     if (uri.host == 'details') {
       final id = uri.pathSegments.isNotEmpty ? uri.pathSegments[0] : 'unknown';
-
       _navigateToDetailScreen(id);
+    } else if (uri.host == 'profile') {
+      final username = uri.pathSegments.isNotEmpty ? uri.pathSegments[0] : 'guest';
+      _navigateToProfileScreen(username);
     } else {
+      setState(() => _status = 'Unknown host: ${uri.host}');
     }
   }
 
@@ -85,6 +85,29 @@ class _MyAppState extends State<MyApp> {
         );
       } else {
         setState(() => _status = 'Received link but cannot navigate - context unavailable');
+      }
+    });
+  }
+
+  void _navigateToProfileScreen(String username) {
+    final context = navigatorKey.currentContext;
+    if (context != null) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => ProfileScreen(username: username)),
+      );
+      return;
+    }
+
+    Future.delayed(Duration(milliseconds: 100), () {
+      final delayedContext = navigatorKey.currentContext;
+      if (delayedContext != null) {
+        Navigator.push(
+          delayedContext,
+          MaterialPageRoute(builder: (context) => ProfileScreen(username: username)),
+        );
+      } else {
+        setState(() => _status = 'Received profile link but cannot navigate - context unavailable');
       }
     });
   }
@@ -149,6 +172,19 @@ class DetailScreen extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class ProfileScreen extends StatelessWidget {
+  final String username;
+  const ProfileScreen({required this.username});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text('Profile')),
+      body: Center(child: Text('Hello, $username!')),
     );
   }
 }

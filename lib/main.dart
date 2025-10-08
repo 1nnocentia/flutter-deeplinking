@@ -11,27 +11,28 @@ class MyApp extends StatefulWidget {
 
 class _MyAppState extends State<MyApp> {
   late AppLinks _appLinks;
-  StreamSubscription<Uri>? _linkSubscription;
+  StreamSubscription<Uri>? _sub;
   String _status = 'Waiting for link...';
 
   @override
   void initState() {
     super.initState();
-    initDeepLinks();
+    initAppLinks();
   }
 
-  Future<void> initDeepLinks() async {
+  Future<void> initAppLinks() async {
     _appLinks = AppLinks();
 
-    // Handle links when app is already running
-    _linkSubscription = _appLinks.uriLinkStream.listen(
-      (uri) {
-        _handleIncomingLink(uri);
-      },
-      onError: (err) {
-        setState(() => _status = 'Failed to receive link: $err');
-      },
-    );
+    // 1. Handle initial link if app was launched by a deep link
+    final initialUri = await _appLinks.getInitialLink();
+    if (initialUri != null) _handleIncomingLink(initialUri);
+
+    // 2. Handle links while app is running
+    _sub = _appLinks.uriLinkStream.listen((Uri uri) {
+      _handleIncomingLink(uri);
+    }, onError: (err) {
+      setState(() => _status = 'Failed to receive link: $err');
+    });
   }
 
   void _handleIncomingLink(Uri uri) {
@@ -49,7 +50,7 @@ class _MyAppState extends State<MyApp> {
 
   @override
   void dispose() {
-    _linkSubscription?.cancel();
+    _sub?.cancel();
     super.dispose();
   }
 
@@ -60,24 +61,7 @@ class _MyAppState extends State<MyApp> {
       home: Scaffold(
         appBar: AppBar(title: Text('Home')),
         body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(_status),
-              SizedBox(height: 20),
-              Text('Try opening: myapp://details/42'),
-              SizedBox(height: 20),
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => DetailScreen(id: '123')),
-                  );
-                },
-                child: Text('Go to Details (ID: 123)'),
-              ),
-            ],
-          ),
+          child: Text(_status),
         ),
       ),
     );
@@ -92,21 +76,7 @@ class DetailScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text('Details')),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text('You opened item ID: $id', style: TextStyle(fontSize: 24)),
-            SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pop(context);
-              },
-              child: Text('Back to Home'),
-            ),
-          ],
-        ),
-      ),
+      body: Center(child: Text('You opened item ID: $id')),
     );
   }
 }

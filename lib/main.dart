@@ -13,39 +13,80 @@ class _MyAppState extends State<MyApp> {
   late AppLinks _appLinks;
   StreamSubscription<Uri>? _sub;
   String _status = 'Waiting for link...';
+  final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
   @override
   void initState() {
     super.initState();
-    initAppLinks();
+    _initializeAppLinks();
   }
 
-  Future<void> initAppLinks() async {
-    _appLinks = AppLinks();
+  void _initializeAppLinks() async {
+    
+    try {
+      _appLinks = AppLinks();
+      
+      await Future.delayed(Duration(milliseconds: 200));
+      
+      _sub = _appLinks.uriLinkStream.listen(
+        (uri) {
+          _handleIncomingLink(uri);
+        },
+        onError: (err) {
+          setState(() => _status = 'Failed to receive link: $err');
+        },
+      );
+      
 
-    // 1. Handle initial link if app was launched by a deep link
-    final initialUri = await _appLinks.getInitialLink();
-    if (initialUri != null) _handleIncomingLink(initialUri);
-
-    // 2. Handle links while app is running
-    _sub = _appLinks.uriLinkStream.listen((Uri uri) {
-      _handleIncomingLink(uri);
-    }, onError: (err) {
-      setState(() => _status = 'Failed to receive link: $err');
-    });
+      final initialUri = await _appLinks.getInitialLink();
+      
+      if (initialUri != null) {
+        Future.delayed(Duration(milliseconds: 500), () {
+          _handleIncomingLink(initialUri);
+        });
+      } else {
+        print('No initial URI found');
+      }
+      
+      setState(() => _status = 'AppLinks initialized - ready for deep links');
+      
+    } catch (e) {
+      setState(() => _status = 'Error initializing: $e');
+    }
   }
 
   void _handleIncomingLink(Uri uri) {
     setState(() => _status = 'Received link: $uri');
 
     if (uri.host == 'details') {
-      // Example link: myapp://details/42
       final id = uri.pathSegments.isNotEmpty ? uri.pathSegments[0] : 'unknown';
+
+      _navigateToDetailScreen(id);
+    } else {
+    }
+  }
+
+  void _navigateToDetailScreen(String id) {
+    final context = navigatorKey.currentContext;
+    if (context != null) {
       Navigator.push(
         context,
         MaterialPageRoute(builder: (context) => DetailScreen(id: id)),
       );
+      return;
     }
+
+    Future.delayed(Duration(milliseconds: 100), () {
+      final delayedContext = navigatorKey.currentContext;
+      if (delayedContext != null) {
+        Navigator.push(
+          delayedContext,
+          MaterialPageRoute(builder: (context) => DetailScreen(id: id)),
+        );
+      } else {
+        setState(() => _status = 'Received link but cannot navigate - context unavailable');
+      }
+    });
   }
 
   @override
@@ -58,10 +99,26 @@ class _MyAppState extends State<MyApp> {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Deep Link Demo',
+      navigatorKey: navigatorKey,
       home: Scaffold(
         appBar: AppBar(title: Text('Home')),
         body: Center(
-          child: Text(_status),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(_status, textAlign: TextAlign.center),
+              SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => DetailScreen(id: 'test')),
+                  );
+                },
+                child: Text('Test Navigation'),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -74,9 +131,24 @@ class DetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    print('DetailScreen built with ID: $id');
     return Scaffold(
       appBar: AppBar(title: Text('Details')),
-      body: Center(child: Text('You opened item ID: $id')),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text('You opened item ID: $id', style: TextStyle(fontSize: 18)),
+            SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context);
+              },
+              child: Text('Back to Home'),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
